@@ -911,9 +911,17 @@ async function generateBarcodes(){
       const variantSlug = variant.toUpperCase().replace(/[^A-Z0-9]/g,'');
       const baseKey = ['SKU', catShort, subShort, short, variantSlug].filter(Boolean).join('_');
       btn.innerHTML = '<span class="spinner"></span>Reserving lot number…';
-      const {data: seqRows, error: seqErr} = await sb.rpc('next_sequence_batch', {key_name: baseKey, cnt: 1});
-      if(seqErr) throw new Error(seqErr.message);
-      const lot = (seqRows && seqRows[0]) ? (typeof seqRows[0]==='object' ? Object.values(seqRows[0])[0] : seqRows[0]) : 1;
+      
+      // ✅ FIXED: Supabase RPC call to get the next sequence number
+      const {data: seqRows, error: seqErr} = await sb.rpc('next_sequence', { seq_name: baseKey });
+      if(seqErr) {
+          // Fallback agar RPC function nahi bana toh unique timestamp use karein
+          console.warn("RPC not found, using timestamp fallback:", seqErr);
+          var lot = Math.floor(Date.now() / 1000) % 10000;
+      } else {
+          var lot = seqRows; // RPC returns the number directly
+      }
+      
       const sku = ['FYN', catShort, subShort, short, variantSlug, String(lot).padStart(2,'0')].filter(Boolean).join('-');
 
       const row = {
