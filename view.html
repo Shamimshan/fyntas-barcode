@@ -1,80 +1,23 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>FYNTAS — Product View</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <style>
-        body { margin: 0; background: #0E0C09; color: #F2E9D8; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
-        .card { background: #1C1712; border: 1px solid #3A2F20; border-radius: 16px; padding: 24px; max-width: 400px; width: 100%; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        .brand { color: #E8C765; font-weight: bold; font-size: 14px; letter-spacing: 2px; margin-bottom: 15px; text-transform: uppercase; }
-        img { max-width: 100%; border-radius: 10px; border: 1px solid #3A2F20; margin: 15px 0; max-height: 300px; object-fit: contain; background: #000; }
-        h2 { margin: 10px 0 5px; color: #fff; font-size: 20px; }
-        .sku { color: #B9AE99; font-size: 12px; font-family: monospace; }
-        .price { color: #E8C765; font-size: 18px; font-weight: bold; margin-top: 10px; }
-        .error { color: #C0463C; }
-        .loader { border: 3px solid #3A2F20; border-top: 3px solid #E8C765; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 20px auto; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    </style>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><title>Product View</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>body{background:#0b1220;color:#dbe4f5;font-family:sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:20px;}
+.card{background:#111b2e;border:1px solid #24314d;border-radius:10px;padding:24px;max-width:400px;width:100%;text-align:center;}
+img{max-width:100%;border-radius:8px;margin:15px 0;max-height:280px;background:#000;}
+h2{color:#f6d98a;}.sku{color:#8493b0;font-family:monospace;font-size:14px;}</style>
 </head>
 <body>
-
-<div class="card">
-    <div class="brand">FYNTAS</div>
-    <div id="content">
-        <div class="loader"></div>
-        <p>Loading product details...</p>
-    </div>
-</div>
-
+<div class="card"><h2>FYNTAS</h2><div id="content"><p>Loading...</p></div></div>
 <script>
-    // 🔥 APNA SUPABASE URL YAHAN DAALEIN (Same as index.html)
-    const SUPABASE_URL = 'https://lngczljuuuelngfvjczm.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxuZ2N6bGp1dXVlbG5nZnZqY3ptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY4OTAzMzIsImV4cCI6MjEwMjQ2NjMzMn0.UwX5iqMuizoN7sEumb24gTy4q0tObwMgWClzt6pE-DY';
-    const PHOTO_BUCKET = 'product-photos';
-
-    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-    async function loadProduct() {
-        const urlParams = new URLSearchParams(window.location.search);
-        const sku = urlParams.get('sku');
-        const content = document.getElementById('content');
-
-        if (!sku) {
-            content.innerHTML = `<h2 class="error">Invalid QR Code</h2><p>No SKU found in this QR code.</p>`;
-            return;
-        }
-
-        try {
-            const { data, error } = await sb.from('products').select('*').eq('sku', sku).single();
-            
-            if (error || !data) {
-                content.innerHTML = `<h2 class="error">Product Not Found</h2><p>SKU: ${sku}</p>`;
-                return;
-            }
-
-            let photoHtml = '';
-            if (data.photo_url) {
-                photoHtml = `<img src="${data.photo_url}" alt="${data.product_name}">`;
-            } else {
-                photoHtml = `<div style="background:#111; padding:40px; border-radius:10px; color:#555; font-size:13px;">No Photo Available</div>`;
-            }
-
-            content.innerHTML = `
-                ${photoHtml}
-                <h2>${data.product_name}</h2>
-                <p class="sku">SKU: ${data.sku}</p>
-                ${data.variant ? `<p style="color:#B9AE99; font-size:14px;">Variant: ${data.variant}</p>` : ''}
-                ${data.price ? `<div class="price">${data.price}</div>` : ''}
-                <p style="font-size:12px; color:#666; margin-top:15px;">Branch: ${data.store || 'N/A'}</p>
-            `;
-        } catch (e) {
-            content.innerHTML = `<h2 class="error">Error Loading Data</h2><p>${e.message}</p>`;
-        }
-    }
-
-    loadProduct();
+const sb = supabase.createClient('https://lngczljuuuelngfvjczm.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxuZ2N6bGp1dXVlbG5nZnZqY3ptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY4OTAzMzIsImV4cCI6MjEwMjQ2NjMzMn0.UwX5iqMuizoN7sEumb24gTy4q0tObwMgWClzt6pE-DY');
+async function load(){const sku=new URLSearchParams(window.location.search).get('sku');const c=document.getElementById('content');
+if(!sku){c.innerHTML='<p class="sku">Invalid QR</p>';return;}
+const{data,error}=await sb.from('products').select('*').eq('sku',sku).single();
+if(error||!data){c.innerHTML=`<p class="sku">Product ${sku} not found</p>`;return;}
+c.innerHTML=(data.photo_url?`<img src="${data.photo_url}">`:'<div style="background:#111;padding:20px;border-radius:8px;color:#555;">No Photo</div>')+
+`<h2>${data.product_name}</h2><p class="sku">SKU: ${data.sku}</p><p>${data.price||''}</p>`;
+}load();
 </script>
 </body>
 </html>
