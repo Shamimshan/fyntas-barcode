@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
-<script src="https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
@@ -364,7 +364,7 @@ const SUPABASE_URL = 'https://lngczljuuuelngfvjczm.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxuZ2N6bGp1dXVlbG5nZnZqY3ptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY4OTAzMzIsImV4cCI6MjEwMjQ2NjMzMn0.UwX5iqMuizoN7sEumb24gTy4q0tObwMgWClzt6pE-DY';
 const PHOTO_BUCKET = 'product-photos';
 
-// OTP Edge Functions — agar aapne deploy kiya hai toh URLs yahan daalein
+// OTP Edge Functions — aapke deployed URLs
 const SEND_OTP_URL = "https://lngczljuuuelngfvjczm.supabase.co/functions/v1/send-otp";
 const VERIFY_OTP_URL = "https://lngczljuuuelngfvjczm.supabase.co/functions/v1/verify-otp";
 
@@ -386,25 +386,18 @@ let editingUserMobile = null;
 document.addEventListener('DOMContentLoaded', function() {
   const inputs = document.querySelectorAll('#otpRow .box input');
   inputs.forEach((input, index) => {
-    // Auto-focus next on input
     input.addEventListener('input', function(e) {
       const val = this.value;
       if (val.length === 1) {
-        // Move to next if exists
         const next = inputs[index + 1];
         if (next) {
           next.focus();
           next.select();
-        } else {
-          // Last box - auto submit? maybe not, user will click verify
-          this.blur();
         }
       }
-      // Update parent class for styling
       this.parentElement.classList.toggle('filled', val.length === 1);
     });
 
-    // Backspace to previous
     input.addEventListener('keydown', function(e) {
       if (e.key === 'Backspace' && this.value === '') {
         const prev = inputs[index - 1];
@@ -415,7 +408,6 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     });
 
-    // Paste support: allow pasting 4 digits
     input.addEventListener('paste', function(e) {
       e.preventDefault();
       const paste = (e.clipboardData || window.clipboardData).getData('text');
@@ -427,7 +419,6 @@ document.addEventListener('DOMContentLoaded', function() {
           inp.parentElement.classList.add('filled');
         }
       });
-      // Focus last input
       inputs[3].focus();
     });
   });
@@ -439,27 +430,39 @@ async function sendOTP() {
   const msg = document.getElementById('loginMsg');
   const btn = document.getElementById('otpSendBtn');
   msg.classList.remove('show');
+  
   if (!mobile || mobile.length !== 10) {
     msg.textContent = 'Please enter a valid 10-digit number.'; msg.classList.add('show'); return;
   }
+  
   btn.innerHTML = 'Sending...'; btn.disabled = true;
   try {
+    console.log('📤 Sending OTP for:', mobile);
     const res = await fetch(SEND_OTP_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ mobile })
     });
     const data = await res.json();
+    console.log('📥 send-otp response:', data);
+    
     if (data.status === 'success') {
+      // For testing, show OTP in console (since SMS may not be integrated)
+      if (data.otp) {
+        console.log('🧪 Test OTP:', data.otp);
+        alert('🧪 Test OTP (check console too): ' + data.otp);
+      }
       document.getElementById('stepMobile').style.display = 'none';
       document.getElementById('stepOTP').style.display = 'block';
-      // Focus first OTP box
       document.querySelector('#otpRow .box input').focus();
     } else {
-      msg.textContent = 'Failed: ' + (data.message || 'Unknown error'); msg.classList.add('show');
+      msg.textContent = data.message || 'Failed to send OTP';
+      msg.classList.add('show');
     }
   } catch(e) {
-    msg.textContent = 'Network error. Check your Edge Function URL or internet.'; msg.classList.add('show');
+    console.error('❌ sendOTP error:', e);
+    msg.textContent = 'Network error. Please check console.';
+    msg.classList.add('show');
   }
   btn.innerHTML = 'Send OTP'; btn.disabled = false;
 }
@@ -478,14 +481,18 @@ async function verifyOTP() {
   btn.innerHTML = 'Verifying...'; btn.disabled = true;
 
   try {
+    console.log('🔍 Verifying OTP for:', mobile);
     const res = await fetch(VERIFY_OTP_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ mobile, otp: enteredOtp })
     });
     const data = await res.json();
-    if (data.status === 'success') {
+    console.log('📥 verify-otp response:', data);
+
+    if (data.status === 'success' || data.status === 'ok') {
       // OTP verified — now fetch user role from Supabase table 'users'
+      console.log('✅ OTP verified, fetching user details...');
       const { data: userData, error } = await sb
         .from('users')
         .select('role, branch, name')
@@ -493,11 +500,14 @@ async function verifyOTP() {
         .single();
 
       if (error || !userData) {
+        console.error('❌ User fetch error:', error);
         msg.textContent = 'Your mobile is not registered as an admin. Contact Super Admin.';
         msg.classList.add('show');
         btn.innerHTML = 'Verify & Sign In'; btn.disabled = false;
         return;
       }
+      console.log('✅ User data:', userData);
+
       CURRENT_USER = mobile;
       ROLE = userData.role || 'branch_admin';
       BRANCH = userData.branch || '';
@@ -506,13 +516,15 @@ async function verifyOTP() {
       sessionStorage.setItem('fyntas_branch', BRANCH);
       enterApp();
     } else {
-      msg.textContent = data.message || 'Invalid OTP'; msg.classList.add('show');
-      // Clear OTP boxes
+      msg.textContent = data.message || 'Invalid OTP';
+      msg.classList.add('show');
       inputs.forEach(i => { i.value = ''; i.parentElement.classList.remove('filled'); });
       inputs[0].focus();
     }
   } catch(e) {
-    msg.textContent = 'Verify failed: ' + e.message; msg.classList.add('show');
+    console.error('❌ Verify network error:', e);
+    msg.textContent = 'Verify failed: ' + e.message;
+    msg.classList.add('show');
   }
   btn.innerHTML = 'Verify & Sign In'; btn.disabled = false;
 }
@@ -521,7 +533,6 @@ function resendOTP() {
   document.getElementById('stepOTP').style.display = 'none';
   document.getElementById('stepMobile').style.display = 'block';
   document.getElementById('loginMsg').classList.remove('show');
-  // Clear OTP boxes
   document.querySelectorAll('#otpRow .box input').forEach(i => { i.value = ''; i.parentElement.classList.remove('filled'); });
 }
 
@@ -553,7 +564,6 @@ function enterApp() {
 }
 
 window.addEventListener('load', ()=>{
-  // Check existing session
   const storedUser = sessionStorage.getItem('fyntas_user');
   const storedRole = sessionStorage.getItem('fyntas_role');
   const storedBranch = sessionStorage.getItem('fyntas_branch');
@@ -737,7 +747,6 @@ async function addStore() {
     renderStoresList();
   }catch(e){ errEl.textContent=e.message; errEl.classList.add('show'); }
 }
-
 async function addBranchAdmin() {
   const branch = document.getElementById('newUserStore').value;
   const mobile = document.getElementById('newUserMobile').value.trim();
@@ -756,7 +765,6 @@ async function addBranchAdmin() {
     renderStoresList();
   }catch(e){ errEl.textContent=e.message; errEl.classList.add('show'); }
 }
-
 async function renderStoresList() {
   const wrap = document.getElementById('storesListWrap');
   wrap.innerHTML = '<p class="hint">Loading…</p>';
@@ -770,18 +778,15 @@ async function renderStoresList() {
     drawStoresList();
   }catch(e){ wrap.innerHTML = `<p class="hint">${e.message}</p>`; }
 }
-
 function drawStoresList() {
   const wrap = document.getElementById('storesListWrap');
   if(!STORES_ALL.length){ wrap.innerHTML = '<p class="hint">Koi store nahi bana abhi tak.</p>'; return; }
   wrap.innerHTML = STORES_ALL.map(s => storeCardHtml(s)).join('');
 }
-
 function storeCardHtml(s) {
   const admins = ALL_USERS.filter(u=>u.branch===s.name && u.role==='branch_admin');
   const active = s.active !== false;
   const id = slug_(s.name);
-
   if(editingStoreName === s.name){
     return `<div class="entity-card">
       <div class="edit-form">
@@ -795,7 +800,6 @@ function storeCardHtml(s) {
       </div>
     </div>`;
   }
-
   return `<div class="entity-card">
     <div class="entity-head" onclick="toggleStoreExpand('${s.name.replace(/'/g,"\\'")}')">
       <div>
@@ -817,11 +821,9 @@ function storeCardHtml(s) {
     </div>` : ''}
   </div>`;
 }
-
 function adminRowHtml(u) {
   const active = u.active !== false;
   const id = slug_(u.mobile);
-
   if(editingUserMobile === u.mobile){
     return `<div class="edit-form">
       <span class="hint">Editing: <b style="color:var(--text-main);">${u.name} (${u.mobile})</b></span>
@@ -832,7 +834,6 @@ function adminRowHtml(u) {
       </div>
     </div>`;
   }
-
   return `<div class="admin-row">
     <span class="uname">${u.name} (${u.mobile})</span>
     <span class="status-badge ${active?'active':'inactive'}">${active?'Active':'Inactive'}</span>
@@ -846,7 +847,6 @@ function adminRowHtml(u) {
     </div>
   </div>`;
 }
-
 function slug_(s){ return String(s).replace(/[^a-zA-Z0-9]/g,'_'); }
 function toggleStoreExpand(name){
   expandedStoreName = (expandedStoreName===name) ? null : name;
@@ -859,7 +859,6 @@ function toggleMenu(id){
 }
 function closeMenus(){ document.querySelectorAll('.dropdown-menu.show').forEach(m=>m.classList.remove('show')); }
 document.addEventListener('click', (e)=>{ if(!e.target.closest('.dots-wrap')) closeMenus(); });
-
 async function saveStoreEdit(oldName){
   const name = document.getElementById('edit-store-name').value.trim();
   const short = document.getElementById('edit-store-short').value.trim().toUpperCase();
