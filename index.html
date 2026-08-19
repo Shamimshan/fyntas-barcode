@@ -11,7 +11,6 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
-/* ---- SAME STYLES AS BEFORE (copied from previous answer) ---- */
 :root {
   --bg-dark: #0b1220;
   --bg-panel: #111b2e;
@@ -103,7 +102,7 @@ input[type=file]{width:100%;color:var(--text-dim);font-size:12.5px;}
 .tag canvas, .tag img.qr{display:block;max-width:100%;}
 .tag .tag-code{font-size:8.5px;letter-spacing:.03em;margin-top:1px;}
 .tag .tag-logo{max-height:22px;max-width:70%;object-fit:contain;margin-bottom:2px;}
-.tag .qr-img{max-width:50px;max-height:50px;margin:2px auto;}
+.tag .qr-img{display:block;max-width:50px;max-height:50px;margin:2px auto;}
 table{width:100%;border-collapse:collapse;font-size:13px;}
 th,td{padding:9px 10px;text-align:left;border-bottom:1px solid var(--border);}
 th{color:var(--text-dim);font-size:11px;text-transform:uppercase;letter-spacing:.05em;font-weight:600;}
@@ -447,10 +446,10 @@ async function sendOTP() {
     console.log('📥 send-otp response:', data);
     
     if (data.status === 'success') {
-      // For testing, show OTP in console (since SMS may not be integrated)
+      // Testing ke liye alert (SMS ke baad bhi useful)
       if (data.otp) {
         console.log('🧪 Test OTP:', data.otp);
-        alert('🧪 Test OTP (check console too): ' + data.otp);
+        // alert('🧪 Test OTP (check console too): ' + data.otp);
       }
       document.getElementById('stepMobile').style.display = 'none';
       document.getElementById('stepOTP').style.display = 'block';
@@ -491,7 +490,6 @@ async function verifyOTP() {
     console.log('📥 verify-otp response:', data);
 
     if (data.status === 'success' || data.status === 'ok') {
-      // OTP verified — now fetch user role from Supabase table 'users'
       console.log('✅ OTP verified, fetching user details...');
       const { data: userData, error } = await sb
         .from('users')
@@ -1053,6 +1051,10 @@ function renderTags(skuResults, meta, codeType, copies) {
             img.src = canvas.toDataURL('image/png');
             img.className = 'qr-img';
             img.alt = 'QR Code';
+            // Ensure print visibility
+            img.style.display = 'block';
+            img.style.maxWidth = '50px';
+            img.style.height = 'auto';
             container.appendChild(img);
           });
         }
@@ -1086,6 +1088,7 @@ async function doSearch() {
           <button class="btn-glossy btn-glossy-sm" onclick="restock('${r.sku}', ${r.quantity||0})">+ Stock</button>
           <button class="btn-glossy btn-glossy-sm" style="background:linear-gradient(135deg, var(--gold-bright), #d97706);color:#0b1220;" onclick="editProduct('${r.sku}', '${(r.price||'').replace(/'/g,"\\'")}')">Edit</button>
           <button class="btn-danger btn-sm" onclick="deleteProduct('${r.sku}')">Delete</button>
+          <button class="btn-outline btn-sm" onclick="printSingleSKU('${r.sku}')">🖨️ Print</button>
         </td>
       </tr>`).join('')}
     </tbody></table>`;
@@ -1121,6 +1124,74 @@ async function deleteProduct(sku){
     if(error) throw error;
     doSearch();
   }catch(e){ alert('Delete fail: '+e.message); }
+}
+
+/* ================= PRINT SINGLE SKU ================= */
+async function printSingleSKU(sku) {
+  try {
+    // Fetch product details from Supabase
+    const { data, error } = await sb
+      .from('products')
+      .select('*')
+      .eq('sku', sku)
+      .single();
+    if (error || !data) {
+      alert('Product not found');
+      return;
+    }
+    // Clear previous labels and show only this one
+    const sheet = document.getElementById('labelSheet');
+    sheet.innerHTML = '';
+    
+    // Build a single tag
+    const w = SETTINGS.width||45, h = SETTINGS.height||30, bh = SETTINGS.barHeight||40;
+    const footer = SETTINGS.footer || 'FYNTAS';
+    const uid = 'c' + Math.random().toString(36).slice(2);
+    
+    const tag = document.createElement('div');
+    tag.className = 'tag';
+    tag.style.width = w + 'mm';
+    tag.style.minHeight = h + 'mm';
+    
+    let html = `<div class="tag-brand">${footer}</div>`;
+    if(SETTINGS.logo) html += `<img class="tag-logo" src="${SETTINGS.logo}">`;
+    html += `<div class="tag-product">${data.product_name}${data.variant ? ' · '+data.variant : ''}</div>`;
+    html += `<div class="tag-sku">SKU: ${data.sku}</div>`;
+    html += `<canvas id="bc-${data.sku}-${uid}"></canvas>`;
+    html += `<div id="qr-container-${data.sku}-${uid}" style="display:inline-block;"></div>`;
+    html += `<div class="tag-code">${data.price || ''}</div>`;
+    tag.innerHTML = html;
+    sheet.appendChild(tag);
+
+    // Render barcode
+    JsBarcode(`#bc-${data.sku}-${uid}`, data.sku, {format:'CODE128', displayValue:false, height:bh, width:2, margin:2});
+    
+    // Render QR as image
+    const container = document.getElementById(`qr-container-${data.sku}-${uid}`);
+    if(container) {
+      const canvas = document.createElement('canvas');
+      QRCode.toCanvas(canvas, viewPageUrl(data.sku), {width: bh+20, margin:1, errorCorrectionLevel: 'M'}, function (error) {
+        if (error) console.error(error);
+        const img = document.createElement('img');
+        img.src = canvas.toDataURL('image/png');
+        img.className = 'qr-img';
+        img.alt = 'QR Code';
+        img.style.display = 'block';
+        img.style.maxWidth = '50px';
+        img.style.height = 'auto';
+        container.appendChild(img);
+      });
+    }
+
+    // Show the result card
+    document.getElementById('resultCard').style.display = 'block';
+    // Delay to ensure QR renders, then print
+    setTimeout(() => {
+      window.print();
+    }, 500);
+  } catch(e) {
+    alert('Error printing label: ' + e.message);
+  }
 }
 </script>
 </body>
