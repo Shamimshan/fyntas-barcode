@@ -446,11 +446,7 @@ async function sendOTP() {
     console.log('📥 send-otp response:', data);
     
     if (data.status === 'success') {
-      // Testing ke liye alert (SMS ke baad bhi useful)
-      if (data.otp) {
-        console.log('🧪 Test OTP:', data.otp);
-        // alert('🧪 Test OTP (check console too): ' + data.otp);
-      }
+      if (data.otp) console.log('🧪 Test OTP:', data.otp);
       document.getElementById('stepMobile').style.display = 'none';
       document.getElementById('stepOTP').style.display = 'block';
       document.querySelector('#otpRow .box input').focus();
@@ -1051,7 +1047,6 @@ function renderTags(skuResults, meta, codeType, copies) {
             img.src = canvas.toDataURL('image/png');
             img.className = 'qr-img';
             img.alt = 'QR Code';
-            // Ensure print visibility
             img.style.display = 'block';
             img.style.maxWidth = '50px';
             img.style.height = 'auto';
@@ -1064,7 +1059,7 @@ function renderTags(skuResults, meta, codeType, copies) {
   card.scrollIntoView({behavior:'smooth'});
 }
 
-/* ================= SEARCH / STOCK ================= */
+/* ================= SEARCH / STOCK (FIXED BUTTONS) ================= */
 async function doSearch() {
   const q = document.getElementById('searchQ').value.trim();
   const storeFilter = ROLE==='super_admin' ? document.getElementById('storeFilter').value : BRANCH;
@@ -1077,20 +1072,26 @@ async function doSearch() {
     const {data, error} = await query;
     if(error) throw error;
     if(!data.length){ wrap.innerHTML='<p class="hint">No results found.</p>'; return; }
+
+    // SAFE onclick generation using JSON.stringify
     wrap.innerHTML = `<table><thead><tr><th>SKU</th><th>Product</th><th>Variant</th><th>Qty</th><th>Branch</th><th>Actions</th></tr></thead><tbody>
-      ${data.map(r=>`<tr>
-        <td class="mono">${r.sku}</td>
-        <td>${r.product_name}</td>
-        <td>${r.variant||'—'}</td>
-        <td>${r.quantity ?? 0}</td>
-        <td>${r.store||'—'}</td>
-        <td style="display:flex;gap:6px;flex-wrap:wrap;">
-          <button class="btn-glossy btn-glossy-sm" onclick="restock('${r.sku}', ${r.quantity||0})">+ Stock</button>
-          <button class="btn-glossy btn-glossy-sm" style="background:linear-gradient(135deg, var(--gold-bright), #d97706);color:#0b1220;" onclick="editProduct('${r.sku}', '${(r.price||'').replace(/'/g,"\\'")}')">Edit</button>
-          <button class="btn-danger btn-sm" onclick="deleteProduct('${r.sku}')">Delete</button>
-          <button class="btn-outline btn-sm" onclick="printSingleSKU('${r.sku}')">🖨️ Print</button>
-        </td>
-      </tr>`).join('')}
+      ${data.map(r => {
+        const skuSafe = JSON.stringify(r.sku);
+        const priceSafe = JSON.stringify(r.price || '');
+        return `<tr>
+          <td class="mono">${r.sku}</td>
+          <td>${r.product_name}</td>
+          <td>${r.variant||'—'}</td>
+          <td>${r.quantity ?? 0}</td>
+          <td>${r.store||'—'}</td>
+          <td style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button class="btn-glossy btn-glossy-sm" onclick="restock(${skuSafe}, ${r.quantity||0})">+ Stock</button>
+            <button class="btn-glossy btn-glossy-sm" style="background:linear-gradient(135deg, var(--gold-bright), #d97706);color:#0b1220;" onclick="editProduct(${skuSafe}, ${priceSafe})">Edit</button>
+            <button class="btn-danger btn-sm" onclick="deleteProduct(${skuSafe})">Delete</button>
+            <button class="btn-outline btn-sm" onclick="printSingleSKU(${skuSafe})">🖨️ Print</button>
+          </td>
+        </tr>`;
+      }).join('')}
     </tbody></table>`;
   }catch(e){ wrap.innerHTML = `<p class="hint">${e.message}</p>`; }
 }
@@ -1129,7 +1130,6 @@ async function deleteProduct(sku){
 /* ================= PRINT SINGLE SKU ================= */
 async function printSingleSKU(sku) {
   try {
-    // Fetch product details from Supabase
     const { data, error } = await sb
       .from('products')
       .select('*')
@@ -1139,11 +1139,9 @@ async function printSingleSKU(sku) {
       alert('Product not found');
       return;
     }
-    // Clear previous labels and show only this one
     const sheet = document.getElementById('labelSheet');
     sheet.innerHTML = '';
     
-    // Build a single tag
     const w = SETTINGS.width||45, h = SETTINGS.height||30, bh = SETTINGS.barHeight||40;
     const footer = SETTINGS.footer || 'FYNTAS';
     const uid = 'c' + Math.random().toString(36).slice(2);
@@ -1163,10 +1161,8 @@ async function printSingleSKU(sku) {
     tag.innerHTML = html;
     sheet.appendChild(tag);
 
-    // Render barcode
     JsBarcode(`#bc-${data.sku}-${uid}`, data.sku, {format:'CODE128', displayValue:false, height:bh, width:2, margin:2});
     
-    // Render QR as image
     const container = document.getElementById(`qr-container-${data.sku}-${uid}`);
     if(container) {
       const canvas = document.createElement('canvas');
@@ -1183,9 +1179,7 @@ async function printSingleSKU(sku) {
       });
     }
 
-    // Show the result card
     document.getElementById('resultCard').style.display = 'block';
-    // Delay to ensure QR renders, then print
     setTimeout(() => {
       window.print();
     }, 500);
